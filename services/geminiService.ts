@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { ExtractionResponse } from "../types";
 
-const MODEL_NAME = 'gemini-3-pro-preview';
+const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const extractLabData = async (file: File): Promise<ExtractionResponse> => {
   const apiKey = process.env.API_KEY;

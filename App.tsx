@@ -101,7 +101,7 @@ const App: React.FC = () => {
                 </h4>
                 <ol className="text-sm text-slate-600 space-y-2 list-decimal list-inside">
                   <li>Vá ao seu projeto no Dashboard da <strong>Vercel</strong>.</li>
-                  <li>Clique em <strong>Settings</strong> > <strong>Environment Variables</strong>.</li>
+                  <li>Clique em <strong>Settings</strong> &gt; <strong>Environment Variables</strong>.</li>
                   <li>Adicione uma variável com a chave <code>API_KEY</code>.</li>
                   <li>Cole o valor da sua chave do Gemini.</li>
                   <li>Faça um novo <strong>Redeploy</strong> do projeto.</li>

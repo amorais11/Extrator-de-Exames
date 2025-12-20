@@ -6,9 +6,6 @@ import ResultDisplay from './components/ResultDisplay';
 import { extractLabData } from './services/geminiService';
 import { AppStatus, ExtractionResponse } from './types';
 
-// The AIStudio global declarations are already provided by the environment.
-// Removing redundant definitions to fix 'Duplicate identifier' and modifier mismatch errors.
-
 const App: React.FC = () => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -21,22 +18,19 @@ const App: React.FC = () => {
   }, []);
 
   const checkInitialAuth = async () => {
-    // 1. Verifica se a chave já foi injetada pelo servidor (ex: Vercel)
-    const envKey = process.env.API_KEY;
+    // Acesso seguro ao process.env para evitar crash
+    const envKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : undefined;
+    
     if (envKey && envKey !== "undefined" && envKey.length > 5) {
       setHasKey(true);
       return;
     }
 
-    // 2. Se não houver chave no env, verifica o seletor do AI Studio (Google Cloud)
     try {
-      // @ts-ignore - window.aistudio is globally defined in the environment
-      if (window.aistudio) {
-        // @ts-ignore
-        const selected = await window.aistudio.hasSelectedApiKey();
+      if (typeof window !== 'undefined' && (window as any).aistudio) {
+        const selected = await (window as any).aistudio.hasSelectedApiKey();
         setHasKey(selected);
       } else {
-        // Se estiver fora do ambiente que provê aistudio e sem env key
         setHasKey(false);
       }
     } catch (e) {
@@ -45,11 +39,8 @@ const App: React.FC = () => {
   };
 
   const handleSelectKey = async () => {
-    // @ts-ignore
-    if (window.aistudio) {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      // Assume success after triggering the dialog as per guidelines to avoid race condition
+    if (typeof window !== 'undefined' && (window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
       setHasKey(true);
     } else {
       setError("Ambiente de configuração de chave indisponível. Configure a variável API_KEY no seu servidor.");

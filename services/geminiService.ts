@@ -2,12 +2,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { ExtractionResponse } from "../types";
 
-// Fix: Use gemini-3-pro-preview for complex reasoning tasks like medical lab data extraction
 const MODEL_NAME = 'gemini-3-pro-preview';
 
 export const extractLabData = async (file: File): Promise<ExtractionResponse> => {
-  // Criamos a instância aqui para garantir que ela use a API_KEY atualizada do ambiente/diálogo
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const base64Data = await new Promise<string>((resolve) => {
     const reader = new FileReader();
@@ -32,7 +36,6 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
   `;
 
   try {
-    // Corrected contents parameter to use single Content object for multi-part input as per guidelines
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: {
@@ -53,7 +56,6 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
       }
     });
 
-    // Use .text property directly as per guidelines (do not use text())
     const text = response.text || "";
     
     const lines = text.split('\n').filter(line => line.trim() !== "");
@@ -71,10 +73,6 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
     };
   } catch (error: any) {
     console.error("Erro na extração Gemini:", error);
-    // Handle specific error to trigger re-authentication via dialog
-    if (error.message?.includes("Requested entity was not found")) {
-      throw new Error("AUTH_REQUIRED");
-    }
-    throw new Error("Falha ao processar o documento. Verifique sua conexão ou permissões da chave.");
+    throw error;
   }
 };

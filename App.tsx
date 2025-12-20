@@ -7,64 +7,33 @@ import { extractLabData } from './services/geminiService';
 import { AppStatus, ExtractionResponse } from './types';
 
 const App: React.FC = () => {
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [data, setData] = useState<ExtractionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-
-  useEffect(() => {
-    checkInitialAuth();
-  }, []);
-
-  const checkInitialAuth = async () => {
-    // Acesso seguro ao process.env para evitar crash
-    const envKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : undefined;
-    
-    if (envKey && envKey !== "undefined" && envKey.length > 5) {
-      setHasKey(true);
-      return;
-    }
-
-    try {
-      if (typeof window !== 'undefined' && (window as any).aistudio) {
-        const selected = await (window as any).aistudio.hasSelectedApiKey();
-        setHasKey(selected);
-      } else {
-        setHasKey(false);
-      }
-    } catch (e) {
-      setHasKey(false);
-    }
-  };
-
-  const handleSelectKey = async () => {
-    if (typeof window !== 'undefined' && (window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
-      setHasKey(true);
-    } else {
-      setError("Ambiente de configuração de chave indisponível. Configure a variável API_KEY no seu servidor.");
-    }
-  };
+  const [showKeyHelp, setShowKeyHelp] = useState(false);
 
   const handleFileSelect = async (file: File) => {
     setFileName(file.name);
     setStatus(AppStatus.LOADING);
     setError(null);
     setData(null);
+    setShowKeyHelp(false);
 
     try {
       const result = await extractLabData(file);
       setData(result);
       setStatus(AppStatus.SUCCESS);
     } catch (err: any) {
-      if (err.message === "AUTH_REQUIRED") {
-        setHasKey(false);
-        setError("A autenticação falhou. Por favor, conecte sua chave novamente.");
+      console.error(err);
+      setStatus(AppStatus.ERROR);
+      
+      if (err.message?.includes("API_KEY_MISSING") || err.message?.includes("401") || err.message?.includes("403")) {
+        setError("Chave de API não configurada ou inválida.");
+        setShowKeyHelp(true);
       } else {
         setError(err.message || 'Erro inesperado ao processar o arquivo.');
       }
-      setStatus(AppStatus.ERROR);
     }
   };
 
@@ -73,50 +42,8 @@ const App: React.FC = () => {
     setData(null);
     setError(null);
     setFileName(null);
+    setShowKeyHelp(false);
   };
-
-  if (hasKey === null) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!hasKey) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-20 h-20 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-indigo-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Configuração Necessária</h2>
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Para processar exames, o app precisa de uma chave de API do Gemini. Você pode conectar sua conta Google Cloud ou configurar o servidor.
-          </p>
-          <button
-            onClick={handleSelectKey}
-            className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all mb-4"
-          >
-            Conectar com Google Cloud
-          </button>
-          <div className="text-xs text-slate-400 space-y-2">
-            <p>Se você é o administrador, adicione a variável <code>API_KEY</code> no painel da Vercel.</p>
-            <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-block hover:text-indigo-600 underline"
-            >
-              Documentação de faturamento
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -131,8 +58,8 @@ const App: React.FC = () => {
                 </svg>
               </div>
               <div className="text-sm text-indigo-800 leading-relaxed">
-                <p className="font-semibold mb-1">Como funciona:</p>
-                <p>Carregue seu PDF ou imagem de exame. O sistema extrairá apenas o nome do parâmetro e o valor numérico. Nenhuma interpretação médica será feita.</p>
+                <p className="font-semibold mb-1">Pronto para começar:</p>
+                <p>Carregue seu PDF ou imagem de exame para extrair os resultados numéricos automaticamente.</p>
               </div>
             </div>
             <FileUpload onFileSelect={handleFileSelect} />
@@ -151,23 +78,43 @@ const App: React.FC = () => {
             </div>
             <h3 className="text-lg font-medium text-slate-700">Analisando documento...</h3>
             <p className="text-sm text-slate-500 mt-2">Isso pode levar alguns segundos.</p>
-            {fileName && <p className="mt-4 text-xs bg-slate-200 px-3 py-1 rounded text-slate-600">{fileName}</p>}
           </div>
         )}
 
         {status === AppStatus.ERROR && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center animate-in zoom-in-95 duration-300">
-            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="bg-white border border-red-100 rounded-2xl shadow-xl p-8 text-center animate-in zoom-in-95 duration-300">
+            <div className="mx-auto w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-red-800">Ocorreu um erro</h3>
-            <p className="text-red-600 mt-2 max-w-md mx-auto">{error}</p>
-            <div className="flex gap-4 justify-center mt-6">
-              <button onClick={reset} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm">Tentar Novamente</button>
-              <button onClick={handleSelectKey} className="px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors shadow-sm text-sm">Alterar Chave</button>
-            </div>
+            <h3 className="text-xl font-bold text-slate-800">Ops! Algo deu errado</h3>
+            <p className="text-slate-600 mt-2 mb-8">{error}</p>
+            
+            {showKeyHelp && (
+              <div className="bg-slate-50 rounded-xl p-6 mb-8 text-left border border-slate-200">
+                <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Como resolver na Vercel:
+                </h4>
+                <ol className="text-sm text-slate-600 space-y-2 list-decimal list-inside">
+                  <li>Vá ao seu projeto no Dashboard da <strong>Vercel</strong>.</li>
+                  <li>Clique em <strong>Settings</strong> > <strong>Environment Variables</strong>.</li>
+                  <li>Adicione uma variável com a chave <code>API_KEY</code>.</li>
+                  <li>Cole o valor da sua chave do Gemini.</li>
+                  <li>Faça um novo <strong>Redeploy</strong> do projeto.</li>
+                </ol>
+              </div>
+            )}
+
+            <button 
+              onClick={reset} 
+              className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
+            >
+              Tentar Novamente
+            </button>
           </div>
         )}
 

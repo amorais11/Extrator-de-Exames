@@ -1,0 +1,7 @@
+{
+  "name": "Extrator de exames laboratoriais",
+  "description": "Uma ferramenta profissional para extrair resultados numéricos de exames laboratoriais a partir de documentos e imagens, focada em produtividade e sem diagnósticos.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

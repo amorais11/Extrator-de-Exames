@@ -2,6 +2,7 @@
 export interface ExamResult {
   parameter: string;
   value: string;
+  unit: string;
 }
 
 export interface ExtractionResponse {

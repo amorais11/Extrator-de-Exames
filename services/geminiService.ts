@@ -1,6 +1,6 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { ExtractionResponse } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { ExtractionResponse, ExamResult } from "../types";
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
@@ -26,13 +26,13 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
 
   const prompt = `
     Analise este documento de exame laboratorial.
-    Extraia APENAS os nomes dos exames (parâmetros) e seus respectivos resultados numéricos.
+    Extraia os nomes dos exames (parâmetros), seus respectivos resultados numéricos e as unidades de medida.
+    
     Regras estritas:
     1. NÃO inclua valores de referência.
-    2. NÃO inclua unidades de medida (ex: mg/dL), apenas o número.
-    3. NÃO forneça diagnósticos, interpretações ou comentários médicos.
-    4. Formate a saída como uma lista simples: "Nome do Exame: Valor".
-    5. Se houver vários exames, coloque um em cada linha.
+    2. O campo 'value' deve conter apenas o número (use '.' como separador decimal).
+    3. O campo 'unit' deve conter a unidade de medida (ex: mg/dL, g/L, mm3, etc).
+    4. NÃO forneça diagnósticos ou interpretações médicas.
   `;
 
   try {
@@ -51,25 +51,38 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
       },
       config: {
         temperature: 0.1,
-        topP: 0.95,
-        systemInstruction: "Você é um assistente especializado em extração de dados brutos de exames. Você nunca fornece diagnósticos. Você apenas lista o nome do exame e o valor numérico encontrado."
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            exams: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  parameter: { type: Type.STRING, description: "Nome do exame/parâmetro" },
+                  value: { type: Type.STRING, description: "Valor numérico do resultado" },
+                  unit: { type: Type.STRING, description: "Unidade de medida (ex: mg/dL)" }
+                },
+                required: ["parameter", "value", "unit"]
+              }
+            }
+          },
+          required: ["exams"]
+        },
+        systemInstruction: "Você é um extrator de dados laboratoriais preciso. Sua única tarefa é converter imagens/PDFs de exames em uma lista JSON estruturada de resultados, incluindo o nome do parâmetro, o valor numérico e a unidade."
       }
     });
 
-    const text = response.text || "";
-    
-    const lines = text.split('\n').filter(line => line.trim() !== "");
-    const results = lines.map(line => {
-      const parts = line.split(':');
-      return {
-        parameter: parts[0]?.trim() || "Desconhecido",
-        value: parts[1]?.trim() || "N/A"
-      };
-    });
+    const jsonResponse = JSON.parse(response.text || '{"exams": []}');
+    const results: ExamResult[] = jsonResponse.exams;
+
+    // Formata o texto bruto para exibição amigável
+    const rawText = results.map(r => `${r.parameter}: ${r.value} ${r.unit}`).join('\n');
 
     return {
       results,
-      rawText: text
+      rawText
     };
   } catch (error: any) {
     console.error("Erro na extração Gemini:", error);

@@ -56,6 +56,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ data }) => {
                 <tr>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Exame</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Resultado</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Unidade</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -63,6 +64,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ data }) => {
                   <tr key={idx} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-700">{res.parameter}</td>
                     <td className="px-4 py-3 text-sm font-bold text-indigo-600 text-right">{res.value}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 italic">{res.unit}</td>
                   </tr>
                 ))}
               </tbody>

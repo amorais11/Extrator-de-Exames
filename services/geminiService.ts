@@ -25,14 +25,17 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
   const mimeType = file.type;
 
   const prompt = `
-    Analise este documento de exame laboratorial.
-    Extraia os nomes dos exames (parâmetros), seus respectivos resultados numéricos e as unidades de medida.
+    Analise este documento de exame laboratorial e extraia os dados técnicos.
     
-    Regras estritas:
-    1. NÃO inclua valores de referência.
-    2. O campo 'value' deve conter apenas o número (use '.' como separador decimal).
-    3. O campo 'unit' deve conter a unidade de medida (ex: mg/dL, g/L, mm3, etc).
-    4. NÃO forneça diagnósticos ou interpretações médicas.
+    Campos necessários para cada exame:
+    1. 'parameter': Nome do exame (ex: Glicose, Anti-HIV).
+    2. 'value': Resultado. Capture números (ex: 95) ou termos qualitativos (ex: REAGENTE, NÃO REAGENTE). Se houver ambos, combine-os (ex: "1.2 - REAGENTE").
+    3. 'unit': Unidade de medida (ex: mg/dL, UI/mL). Deixe vazio se não houver.
+
+    Regras Críticas:
+    - NÃO inclua valores de referência.
+    - NÃO inclua interpretações médicas.
+    - Foque apenas nos resultados encontrados.
   `;
 
   try {
@@ -60,9 +63,9 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  parameter: { type: Type.STRING, description: "Nome do exame/parâmetro" },
-                  value: { type: Type.STRING, description: "Valor numérico do resultado" },
-                  unit: { type: Type.STRING, description: "Unidade de medida (ex: mg/dL)" }
+                  parameter: { type: Type.STRING },
+                  value: { type: Type.STRING },
+                  unit: { type: Type.STRING }
                 },
                 required: ["parameter", "value", "unit"]
               }
@@ -70,15 +73,42 @@ export const extractLabData = async (file: File): Promise<ExtractionResponse> =>
           },
           required: ["exams"]
         },
-        systemInstruction: "Você é um extrator de dados laboratoriais preciso. Sua única tarefa é converter imagens/PDFs de exames em uma lista JSON estruturada de resultados, incluindo o nome do parâmetro, o valor numérico e a unidade."
+        systemInstruction: "Você é um sistema de OCR médico que extrai dados brutos. Retorne apenas JSON puro seguindo o schema. Seja conciso para evitar truncamento de texto."
       }
     });
 
-    const jsonResponse = JSON.parse(response.text || '{"exams": []}');
-    const results: ExamResult[] = jsonResponse.exams;
+    let results: ExamResult[] = [];
+    const rawResponseText = response.text || "";
 
-    // Formata o texto bruto para exibição amigável
-    const rawText = results.map(r => `${r.parameter}: ${r.value} ${r.unit}`).join('\n');
+    try {
+      // Tenta limpar possíveis caracteres de controle ou blocos de código markdown que a IA possa ter inserido
+      const sanitizedJson = rawResponseText.trim().replace(/^```json\s*|```$/g, "");
+      const jsonResponse = JSON.parse(sanitizedJson);
+      results = jsonResponse.exams || [];
+    } catch (parseError) {
+      console.warn("Falha no parse JSON, tentando recuperação manual:", parseError);
+      
+      // Fallback: Tenta extrair informações básicas usando Regex se o JSON estiver quebrado/truncado
+      const regex = /"parameter":\s*"([^"]+)",\s*"value":\s*"([^"]+)",\s*"unit":\s*"([^"]*)"/g;
+      let match;
+      while ((match = regex.exec(rawResponseText)) !== null) {
+        results.push({
+          parameter: match[1],
+          value: match[2],
+          unit: match[3]
+        });
+      }
+      
+      if (results.length === 0) {
+        throw new Error("Não foi possível processar a estrutura dos dados do exame. Por favor, tente uma imagem mais nítida.");
+      }
+    }
+
+    // Formata o texto bruto para exibição amigável e copia/cola
+    const rawText = results.map(r => {
+      const unitPart = r.unit ? ` ${r.unit}` : "";
+      return `${r.parameter}: ${r.value}${unitPart}`;
+    }).join('\n');
 
     return {
       results,
